@@ -22,6 +22,12 @@ st.markdown("""<style>
     }
 </style>""", unsafe_allow_html=True)
 
+st.markdown("""<style>
+    section[data-testid="stSidebar"] {
+        width: 200px !important;
+    }
+    </style>""", unsafe_allow_html=True)
+
 def squeeze_spaces(s):
     s_without_spaces = re.sub(r'\s+', '', s)
     return s_without_spaces
