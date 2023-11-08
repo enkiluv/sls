@@ -80,7 +80,7 @@ def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n):
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 80
+        top_n = 100
     elif model.startswith('gpt-4'):
         top_n = 12
     elif model.startswith('gpt-3.5-turbo'):
@@ -161,7 +161,7 @@ def interact():
             full_response = ""
             for response in openai.ChatCompletion.create(
                     model=GPT_MODEL,
-                    temperature=0.7,
+                    temperature=0.1,
                     messages=chat_state['messages'],
                     n=1,
                     # top_p=1,
