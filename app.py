@@ -37,8 +37,8 @@ SUBJECT = '»î°ú ¿µÈ¥ÀÇ ºñ¹Ð'
 
 # Set model and map model names to OpenAI model IDs
 EMBEDDING_MODEL = "text-embedding-ada-002"
-# GPT_MODEL = "gpt-4-1106-preview"
-GPT_MODEL = "gpt-3.5-turbo-16k"
+GPT_MODEL = "gpt-4-1106-preview"
+# GPT_MODEL = "gpt-3.5-turbo-16k"
 MAX_RETRIES = 2
     
 chat_state = st.session_state
