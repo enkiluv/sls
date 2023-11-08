@@ -80,7 +80,7 @@ def query_message(query, embeddings, model):
     strings, relatednesses = strings_ranked_by_relatedness(
         query, embeddings, lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2))
 
-    message = f'다음 단서들만을 사용하여 주어진 질문에 진지한 말투로 정확하게 답해주세요.\n\n\n===단서 시작===\n\n'
+    message = f'다음 단서들을 사용하여 주어진 질문에 정확하게 답해주세요.\n\n\n===단서 시작===\n\n'
     for i, string in enumerate(strings):
         next_article = string.strip() + "\n"
         message += f"- {next_article}]\n\n"
@@ -131,7 +131,7 @@ def interact():
             chat_state['messages'].append({
                 "role": "system",
                 "content": f"당신은 대승불교 양우회에서 출간한 '{SUBJECT}'의 내용을 통달하고 있는 조언자입니다."})
-            extended_prompt = prompt + f"(답을 찾기 힘든 형우 답을 억지로 만들지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
+            extended_prompt = prompt + f"(답을 알 수 없는 경우 억지로 답을 지어내지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -147,7 +147,7 @@ def interact():
             full_response = ""
             for response in openai.ChatCompletion.create(
                     model=GPT_MODEL,
-                    temperature=0.6,
+                    temperature=0.7,
                     messages=chat_state['messages'],
                     n=1,
                     # top_p=1,
