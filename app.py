@@ -37,8 +37,8 @@ SUBJECT = '삶과 영혼의 비밀'
 
 # Set model and map model names to OpenAI model IDs
 EMBEDDING_MODEL = "text-embedding-ada-002"
-GPT_MODEL = "gpt-4-1106-preview"
-# GPT_MODEL = "gpt-3.5-turbo-16k"
+# GPT_MODEL = "gpt-4-1106-preview"
+GPT_MODEL = "gpt-3.5-turbo-16k"
 MAX_RETRIES = 2
     
 chat_state = st.session_state
@@ -131,7 +131,7 @@ def interact():
             chat_state['messages'].append({
                 "role": "system",
                 "content": f"당신은 대승불교 양우회에서 출간한 '{SUBJECT}'의 내용을 통달하고 있는 조언자입니다."})
-            extended_prompt = prompt + f"(답을 알 수 없는 경우, 한번만 더 생각해보고 나서 억지로 답을 지어내지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
+            extended_prompt = prompt + f"(답을 알 수 없는 경우 억지로 답을 지어내지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
