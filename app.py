@@ -161,7 +161,7 @@ def interact():
             full_response = ""
             for response in openai.ChatCompletion.create(
                     model=GPT_MODEL,
-                    temperature=0.1,
+                    temperature=0.5,
                     messages=chat_state['messages'],
                     n=1,
                     # top_p=1,
