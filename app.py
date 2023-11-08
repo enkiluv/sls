@@ -80,13 +80,13 @@ def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n):
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 100
+        top_n = 96
     elif model.startswith('gpt-4'):
         top_n = 12
     elif model.startswith('gpt-3.5-turbo'):
-        top_n = 25
+        top_n = 24
     else:
-        top_n = 8
+        top_n = 6
     strings, relatednesses = strings_ranked_by_relatedness(
         query,
         embeddings,
