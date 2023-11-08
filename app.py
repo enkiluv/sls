@@ -59,7 +59,7 @@ def clear_chat(state):
     clear_one('generated')
     clear_one('messages')
 
-def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n=8):
+def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n):
     """Returns a list of strings and relatednesses, sorted from most related to least."""
     query_embedding_response = openai.Embedding.create(
         model=EMBEDDING_MODEL,
@@ -89,7 +89,7 @@ def query_message(query, embeddings, model):
         query,
         embeddings,
         lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2),
-        top_n
+        top_n,
     )
 
     message = f'다음 단서들을 사용하여 주어진 질문에 정확하게 답해주세요.\n\n\n===단서 시작===\n\n'
