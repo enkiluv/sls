@@ -77,8 +77,20 @@ def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n=8):
 
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
+    if model.startswith('gpt-4-turbo'):
+        top_n = 100
+    elif model.startswith('gpt-4'):
+        top_n = 10
+    elif model.startswith('gpt-3.5-turbo'):
+        top_n = 20
+    else:
+        top_n = 5
     strings, relatednesses = strings_ranked_by_relatedness(
-        query, embeddings, lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2))
+        query,
+        embeddings,
+        lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2),
+        top_n
+    )
 
     message = f'다음 단서들을 사용하여 주어진 질문에 정확하게 답해주세요.\n\n\n===단서 시작===\n\n'
     for i, string in enumerate(strings):
