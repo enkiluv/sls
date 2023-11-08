@@ -80,11 +80,11 @@ def query_message(query, embeddings, model):
     if model.startswith('gpt-4-'):
         top_n = 100
     elif model.startswith('gpt-4'):
-        top_n = 10
+        top_n = 12
     elif model.startswith('gpt-3.5-turbo'):
-        top_n = 20
+        top_n = 25
     else:
-        top_n = 5
+        top_n = 8
     strings, relatednesses = strings_ranked_by_relatedness(
         query,
         embeddings,
