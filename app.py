@@ -11,7 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 st.set_page_config(
-    page_title="»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ",
+    page_title="ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€",
     layout="wide",
     page_icon=":robot_face:",
 )
@@ -33,7 +33,7 @@ def squeeze_spaces(s):
     return s_without_spaces
 
 # Tech support area
-SUBJECT = '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'
+SUBJECT = 'ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€'
 
 # Set model and map model names to OpenAI model IDs
 EMBEDDING_MODEL = "text-embedding-ada-002"
@@ -80,13 +80,13 @@ def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n):
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 100
+        top_n = 72
     elif model.startswith('gpt-4'):
-        top_n = 15
+        top_n = 12
     elif model.startswith('gpt-3.5-turbo'):
-        top_n = 30
+        top_n = 24
     else:
-        top_n = 10
+        top_n = 6
     strings, relatednesses = strings_ranked_by_relatedness(
         query,
         embeddings,
@@ -94,11 +94,11 @@ def query_message(query, embeddings, model):
         top_n,
     )
 
-    message = f'´ÙÀ½ ´Ü¼­µéÀ» »ç¿ëÇÏ¿© ÁÖ¾îÁø Áú¹®¿¡ Á¤È®ÇÏ°Ô ´äÇØÁÖ¼¼¿ä.\n\n\n===´Ü¼­ ½ÃÀÛ===\n\n'
+    message = f'ë‹¤ìŒ ë‹¨ì„œë“¤ì„ ì‚¬ìš©í•˜ì—¬ ì£¼ì–´ì§„ ì§ˆë¬¸ì— ì •í™•í•˜ê²Œ ë‹µí•´ì£¼ì„¸ìš”.\n\n\n===ë‹¨ì„œ ì‹œì‘===\n\n'
     for i, string in enumerate(strings):
         next_article = string.strip() + "\n"
         message += f"- {next_article}]\n\n"
-    return i, message + "===´Ü¼­ ³¡===\n\n"
+    return i, message + "===ë‹¨ì„œ ë===\n\n"
 
 @st.cache_data
 def load_embeddings(name):
@@ -111,7 +111,7 @@ def interact():
     st.markdown(f"<h2 style='text-align: center;'><font color='green'>{SUBJECT}</font></h2>",
         unsafe_allow_html=True)
     st.markdown("")
-    st.markdown(f"<p style='text-align: center;'>* ´ë½ÂºÒ±³ ¾ç¿ìÈ¸¿¡¼­ Á¦°øÇÏ´Â <a href='http://yangwoopub.com/?mod=document&uid=25&page_id=12'>»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ</a>¿¡ ´ëÇÑ ÁúÀÇÀÀ´ä ¼­ºñ½ºÀÔ´Ï´Ù.<br/>* <font color='red'>ÀÏºÎ Áú¹®¿¡ Ã¥ ³»¿ë°ú ´Ù¸¥ Á¤º¸°¡ ÀÀ´äÀ¸·Î ¹İÈ¯µÉ ¼öµµ ÀÖÀ¸¹Ç·Î Âü°í¿ëÀ¸·Î¸¸ »ç¿ëÇÏ½Ã±â ¹Ù¶ø´Ï´Ù.</font></p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center;'>* ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°íšŒì—ì„œ ì œê³µí•˜ëŠ” <a href='http://yangwoopub.com/?mod=document&uid=25&page_id=12'>ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€</a>ì— ëŒ€í•œ ì§ˆì˜ì‘ë‹µ ì„œë¹„ìŠ¤ì…ë‹ˆë‹¤.<br/>* <font color='red'>ì¼ë¶€ ì§ˆë¬¸ì— ì±… ë‚´ìš©ê³¼ ë‹¤ë¥¸ ì •ë³´ê°€ ì‘ë‹µìœ¼ë¡œ ë°˜í™˜ë  ìˆ˜ë„ ìˆìœ¼ë¯€ë¡œ ì°¸ê³ ìš©ìœ¼ë¡œë§Œ ì‚¬ìš©í•˜ì‹œê¸° ë°”ëë‹ˆë‹¤.</font></p>", unsafe_allow_html=True)
     st.write('<style>div.row-widget.stRadio > div{flex-direction:row;}</style>',
         unsafe_allow_html=True)
 
@@ -144,8 +144,8 @@ def interact():
         if is_first_attempt:
             chat_state['messages'].append({
                 "role": "system",
-                "content": f"´ç½ÅÀº ´ë½ÂºÒ±³ ¾ç¿ìÈ¸¿¡¼­ Ãâ°£ÇÑ '{SUBJECT}'ÀÇ ³»¿ëÀ» Åë´ŞÇÏ°í ÀÖ´Â Á¶¾ğÀÚÀÔ´Ï´Ù."})
-            extended_prompt = prompt + f"(´äÀ» ¾Ë ¼ö ¾ø´Â °æ¿ì ¾ïÁö·Î ´äÀ» Áö¾î³»Áö ¸»°í 'ÁË¼ÛÇÕ´Ï´Ù. ±× Áú¹®¿¡ ´ëÇÑ ´äÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.' ¶ó°í ÇØÁÖ¼¼¿ä.)\n\nQUESTION: {query}"
+                "content": f"ë‹¹ì‹ ì€ ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°íšŒì—ì„œ ì¶œê°„í•œ '{SUBJECT}'ì˜ ë‚´ìš©ì„ í†µë‹¬í•˜ê³  ìˆëŠ” ì¡°ì–¸ìì…ë‹ˆë‹¤."})
+            extended_prompt = prompt + f"(ë‹µì„ ì•Œ ìˆ˜ ì—†ëŠ” ê²½ìš° ì–µì§€ë¡œ ë‹µì„ ì§€ì–´ë‚´ì§€ ë§ê³  'ì£„ì†¡í•©ë‹ˆë‹¤. ê·¸ ì§ˆë¬¸ì— ëŒ€í•œ ë‹µì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.' ë¼ê³  í•´ì£¼ì„¸ìš”.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -189,7 +189,7 @@ def interact():
             st.chat_message("assistant").write(chat_state.generated[i])
 
         # A new query
-        user_input = st.chat_input("¹«¾ùÀ» µµ¿Íµå¸±±î¿ä?")
+        user_input = st.chat_input("ë¬´ì—‡ì„ ë„ì™€ë“œë¦´ê¹Œìš”?")
         if user_input:
             st.chat_message("user").write(user_input)
             retries = 1
@@ -217,11 +217,11 @@ def interact():
             else:
                 chat_state['generated'].append(error_msgs)
                 if retries == MAX_RETRIES + 1:
-                    st.error("³Ê¹« ¸¹Àº ´ëÈ­¸¦ ³ª´« °Í °°½À´Ï´Ù. ´ÙÀ½¿¡ ¶Ç ºË°Ú½À´Ï´Ù.")
+                    st.error("ë„ˆë¬´ ë§ì€ ëŒ€í™”ë¥¼ ë‚˜ëˆˆ ê²ƒ ê°™ìŠµë‹ˆë‹¤. ë‹¤ìŒì— ë˜ ëµ™ê² ìŠµë‹ˆë‹¤.")
 
     # Bells and whistles
     if True:
-        with st.sidebar.expander("³»º¸³»±â", expanded=False):
+        with st.sidebar.expander("ë‚´ë³´ë‚´ê¸°", expanded=False):
             def to_csv(dataframe):
                 csv_buffer = io.StringIO()
                 dataframe.to_csv(csv_buffer, index=False)
@@ -237,17 +237,17 @@ def interact():
                     options=("csv", "html", "chat"), label_visibility="collapsed")
                 def build_data(chat):
                     return (to_csv if file_type == "csv" else to_html)(chat)
-                file_name = st.text_input("ÆÄÀÏ¸í", squeeze_spaces(SUBJECT))
+                file_name = st.text_input("íŒŒì¼ëª…", squeeze_spaces(SUBJECT))
                 if file_name:
                     if file_type == "chat":
                         file_path = file_name + "_" + \
                             str(datetime.datetime.now())[5:19].replace(' ', '_') + ".chat"
                         pickled_ = pickle.dumps(dict(chat_state), pickle.HIGHEST_PROTOCOL)
-                        st.download_button(label="È®ÀÎ", data=pickled_, file_name=file_path)
+                        st.download_button(label="í™•ì¸", data=pickled_, file_name=file_path)
                     else:       # "csv" or "html"
                         file_path = f"{file_name}.{file_type}"
                         download = st.download_button(
-                                label="È®ÀÎ",
+                                label="í™•ì¸",
                             data=build_data(pd.DataFrame({
                                 'Prompt': chat_state['prompt'],
                                 'Response': chat_state['generated'],
@@ -255,10 +255,10 @@ def interact():
                             file_name=file_path,
                             mime=f'text/{file_type}')
     
-        with st.sidebar.expander("ºÒ·¯¿À±â", expanded=False):
-            conversation = st.file_uploader('´ëÈ­ ÆÄÀÏ ¾÷·Îµå', label_visibility='collapsed')
-            if conversation and st.button("È®ÀÎ",
-                    key="ok_restore", help="ÀÌ ¸Ş´º¸¦ ½ÇÇàÇÏ¸é ÇöÀç ÁøÇàÁßÀÎ ´ëÈ­°¡ Áö¿öÁı´Ï´Ù!"):
+        with st.sidebar.expander("ë¶ˆëŸ¬ì˜¤ê¸°", expanded=False):
+            conversation = st.file_uploader('ëŒ€í™” íŒŒì¼ ì—…ë¡œë“œ', label_visibility='collapsed')
+            if conversation and st.button("í™•ì¸",
+                    key="ok_restore", help="ì´ ë©”ë‰´ë¥¼ ì‹¤í–‰í•˜ë©´ í˜„ì¬ ì§„í–‰ì¤‘ì¸ ëŒ€í™”ê°€ ì§€ì›Œì§‘ë‹ˆë‹¤!"):
                 # Read the bytes of the file into a bytes object
                 file_bytes = io.BytesIO(conversation.read())
                 # Load the bytes object into a Python object using the pickle module
