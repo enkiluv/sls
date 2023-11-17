@@ -1,6 +1,12 @@
 # -*- coding: cp949 -*-
 
 import streamlit as st
+st.set_page_config(
+    page_title="»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ",
+    layout="wide",
+    page_icon=":robot_face:",
+)
+
 from scipy import spatial
 import pandas as pd
 import openai   # For calling the OpenAI API
@@ -8,41 +14,30 @@ import pickle
 import base64
 import io, os, re, random, datetime
 from pathlib import Path
-from PIL import Image
-
-st.set_page_config(
-    page_title="ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€",
-    layout="wide",
-    page_icon=":robot_face:",
-)
 
 st.markdown("""<style>
     html, body, .stTextArea textarea {
         font-size: 13px;
     }
-</style>""", unsafe_allow_html=True)
-
-st.markdown("""<style>
     section[data-testid="stSidebar"] {
         width: 200px !important;
+        padding-top: 1rem;
     }
-    </style>""", unsafe_allow_html=True)
+    div.row-widget.stRadio > div{flex-direction:row;}
+</style>""", unsafe_allow_html=True)
 
 def squeeze_spaces(s):
     s_without_spaces = re.sub(r'\s+', '', s)
     return s_without_spaces
 
-# Tech support area
-SUBJECT = 'ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€'
 
 # Set model and map model names to OpenAI model IDs
 EMBEDDING_MODEL = "text-embedding-ada-002"
+
 # GPT_MODEL = "gpt-4-1106-preview"
 # GPT_MODEL = "gpt-3.5-turbo-16k"
-GPT_MODEL = "gpt-4"
 
 MAX_RETRIES = 2
-    
 chat_state = st.session_state
 
 # Initialize
@@ -94,13 +89,12 @@ def query_message(query, embeddings, model):
         top_n,
     )
 
-    message = f'ë‹¤ìŒ ë‹¨ì„œë“¤ì„ ì‚¬ìš©í•˜ì—¬ ì£¼ì–´ì§„ ì§ˆë¬¸ì— ì •í™•í•˜ê²Œ ë‹µí•´ì£¼ì„¸ìš”.\n\n\n===ë‹¨ì„œ ì‹œì‘===\n\n'
+    message = f'´ÙÀ½ ´Ü¼­µéÀ» »ç¿ëÇÏ¿© ÁÖ¾îÁø Áú¹®¿¡ Á¤È®ÇÏ°Ô ´äÇØÁÖ¼¼¿ä.\n\n\n===´Ü¼­ ½ÃÀÛ===\n\n'
     for i, string in enumerate(strings):
         next_article = string.strip() + "\n"
         message += f"- {next_article}]\n\n"
-    return i, message + "===ë‹¨ì„œ ë===\n\n"
+    return i, message + "===´Ü¼­ ³¡===\n\n"
 
-@st.cache_data
 def load_embeddings(name):
     source = os.path.join('embeddings', f"{squeeze_spaces(name)}.csv")
     embeddings = pd.read_csv(source)
@@ -108,12 +102,14 @@ def load_embeddings(name):
     return embeddings
 
 def interact():
-    st.markdown(f"<h2 style='text-align: center;'><font color='green'>{SUBJECT}</font></h2>",
+    st.markdown(f"<h2 style='text-align: center;'><font color='green'>{subject}</font></h2>",
         unsafe_allow_html=True)
+
+    if intro:
+        st.markdown("")
+        st.markdown(f"<p style='text-align: center;'>{intro}</p>", unsafe_allow_html=True)
+
     st.markdown("")
-    st.markdown(f"<p style='text-align: center;'>* ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°íšŒì—ì„œ ì œê³µí•˜ëŠ” <a href='http://yangwoopub.com/?mod=document&uid=25&page_id=12'>ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€</a>ì— ëŒ€í•œ ì§ˆì˜ì‘ë‹µ ì„œë¹„ìŠ¤ì…ë‹ˆë‹¤.<br/>* <font color='red'>ì¼ë¶€ ì§ˆë¬¸ì— ì±… ë‚´ìš©ê³¼ ë‹¤ë¥¸ ì •ë³´ê°€ ì‘ë‹µìœ¼ë¡œ ë°˜í™˜ë  ìˆ˜ë„ ìˆìœ¼ë¯€ë¡œ ì°¸ê³ ìš©ìœ¼ë¡œë§Œ ì‚¬ìš©í•˜ì‹œê¸° ë°”ëë‹ˆë‹¤.</font></p>", unsafe_allow_html=True)
-    st.write('<style>div.row-widget.stRadio > div{flex-direction:row;}</style>',
-        unsafe_allow_html=True)
 
     def img_to_bytes(img_path):
         img_bytes = Path(img_path).read_bytes()
@@ -123,10 +119,10 @@ def interact():
         img_html = f"<img src='data:image/png;base64,{img_to_bytes(img_path)}' style='display: block; margin-left: auto; margin-right: auto;'>"
         return img_html
 
-    image_html = img_to_html(f'images/{squeeze_spaces(SUBJECT)}.jpg')
-    wrap_href = f"<a href='http://yangwoopub.com/?mod=document&uid=25&page_id=12'>{image_html}</a>"
-    st.sidebar.markdown("<p style='text-align: center; color: #ededed;'>"+wrap_href+"</p>", unsafe_allow_html=True)
-    st.sidebar.markdown("")
+    if logo_image and os.path.exists(logo_image):
+        image_html = img_to_html(logo_image)
+        st.sidebar.markdown("<p style='text-align: center;'>"+image_html+"</p>", unsafe_allow_html=True)
+        st.sidebar.markdown("")
 
     init_chat(chat_state)
     
@@ -135,7 +131,7 @@ def interact():
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
     # Embeddings
-    chat_state['embeddings'] = load_embeddings(squeeze_spaces(SUBJECT))
+    chat_state['embeddings'] = load_embeddings(squeeze_spaces(subject))
 
     # Generate a response
     def generate_response(query, is_first_attempt):
@@ -144,8 +140,8 @@ def interact():
         if is_first_attempt:
             chat_state['messages'].append({
                 "role": "system",
-                "content": f"ë‹¹ì‹ ì€ ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°íšŒì—ì„œ ì¶œê°„í•œ '{SUBJECT}'ì˜ ë‚´ìš©ì„ í†µë‹¬í•˜ê³  ìˆëŠ” ì¡°ì–¸ìì…ë‹ˆë‹¤."})
-            extended_prompt = prompt + f"(ë‹µì„ ì•Œ ìˆ˜ ì—†ëŠ” ê²½ìš° ì–µì§€ë¡œ ë‹µì„ ì§€ì–´ë‚´ì§€ ë§ê³  'ì£„ì†¡í•©ë‹ˆë‹¤. ê·¸ ì§ˆë¬¸ì— ëŒ€í•œ ë‹µì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.' ë¼ê³  í•´ì£¼ì„¸ìš”.)\n\nQUESTION: {query}"
+                "content": f"´ç½ÅÀº {expertise}ÀÔ´Ï´Ù."})
+            extended_prompt = prompt + f"(ÃÖ´ëÇÑ ´äÀ» ÇÏ·Á ³ë·ÂÇÏµÇ, µµÀúÈ÷ ´äÀ» ¾Ë ¼ö ¾ø´Â °æ¿ì ¸»À» Áö¾î³»Áö ¸»°í 'ÁË¼ÛÇÕ´Ï´Ù. ±× Áú¹®¿¡ ´ëÇÑ ´äÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.' ¶ó°í ÇØÁÖ¼¼¿ä.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -161,10 +157,9 @@ def interact():
             full_response = ""
             for response in openai.ChatCompletion.create(
                     model=GPT_MODEL,
-                    temperature=0.2,
+                    temperature=temperature,
                     messages=chat_state['messages'],
                     n=1,
-                    # top_p=1,
                     stop=None,
                     stream=True):
                 full_response += response.choices[0].delta.get("content", "")
@@ -189,7 +184,7 @@ def interact():
             st.chat_message("assistant").write(chat_state.generated[i])
 
         # A new query
-        user_input = st.chat_input("ë¬´ì—‡ì„ ë„ì™€ë“œë¦´ê¹Œìš”?")
+        user_input = st.chat_input("¹«¾ùÀ» µµ¿Íµå¸±±î¿ä?")
         if user_input:
             st.chat_message("user").write(user_input)
             retries = 1
@@ -217,58 +212,74 @@ def interact():
             else:
                 chat_state['generated'].append(error_msgs)
                 if retries == MAX_RETRIES + 1:
-                    st.error("ë„ˆë¬´ ë§ì€ ëŒ€í™”ë¥¼ ë‚˜ëˆˆ ê²ƒ ê°™ìŠµë‹ˆë‹¤. ë‹¤ìŒì— ë˜ ëµ™ê² ìŠµë‹ˆë‹¤.")
+                    st.error("Àá½Ã ÈÄ¿¡ ´Ù½Ã ½ÃµµÇØ ÁÖ¼¼¿ä.")
 
     # Bells and whistles
-    if True:
-        with st.sidebar.expander("ë‚´ë³´ë‚´ê¸°", expanded=False):
-            def to_csv(dataframe):
-                csv_buffer = io.StringIO()
-                dataframe.to_csv(csv_buffer, index=False)
-                csv_buffer.seek(0)
-                return io.BytesIO(csv_buffer.getvalue().encode("utf-8"))
-        
-            def to_html(dataframe):
-                html = dataframe.to_html(index=False, escape=False).replace("\\n", '\0')
-                return '<meta charset="utf-8">\n' + html
+    with st.sidebar.expander("³»º¸³»±â", expanded=False):
+        def to_csv(dataframe):
+            csv_buffer = io.StringIO()
+            dataframe.to_csv(csv_buffer, index=False)
+            csv_buffer.seek(0)
+            return io.BytesIO(csv_buffer.getvalue().encode("utf-8"))
     
-            with st.container():
-                file_type = st.radio(label="Format",
-                    options=("csv", "html", "chat"), label_visibility="collapsed")
-                def build_data(chat):
-                    return (to_csv if file_type == "csv" else to_html)(chat)
-                file_name = st.text_input("íŒŒì¼ëª…", squeeze_spaces(SUBJECT))
-                if file_name:
-                    if file_type == "chat":
-                        file_path = file_name + "_" + \
-                            str(datetime.datetime.now())[5:19].replace(' ', '_') + ".chat"
-                        pickled_ = pickle.dumps(dict(chat_state), pickle.HIGHEST_PROTOCOL)
-                        st.download_button(label="í™•ì¸", data=pickled_, file_name=file_path)
-                    else:       # "csv" or "html"
-                        file_path = f"{file_name}.{file_type}"
-                        download = st.download_button(
-                                label="í™•ì¸",
-                            data=build_data(pd.DataFrame({
-                                'Prompt': chat_state['prompt'],
-                                'Response': chat_state['generated'],
-                            })),
-                            file_name=file_path,
-                            mime=f'text/{file_type}')
-    
-        with st.sidebar.expander("ë¶ˆëŸ¬ì˜¤ê¸°", expanded=False):
-            conversation = st.file_uploader('ëŒ€í™” íŒŒì¼ ì—…ë¡œë“œ', label_visibility='collapsed')
-            if conversation and st.button("í™•ì¸",
-                    key="ok_restore", help="ì´ ë©”ë‰´ë¥¼ ì‹¤í–‰í•˜ë©´ í˜„ì¬ ì§„í–‰ì¤‘ì¸ ëŒ€í™”ê°€ ì§€ì›Œì§‘ë‹ˆë‹¤!"):
-                # Read the bytes of the file into a bytes object
-                file_bytes = io.BytesIO(conversation.read())
-                # Load the bytes object into a Python object using the pickle module
-                saved_chat = pickle.load(file_bytes)
-                clear_chat(chat_state)
-                chat_state['prompt'] = saved_chat['prompt']
-                chat_state['generated'] = saved_chat['generated']
-                chat_state['messages'] = saved_chat['messages']
-                st.rerun()
+        def to_html(dataframe):
+            html = dataframe.to_html(index=False, escape=False).replace("\\n", '\0')
+            return '<meta charset="utf-8">\n' + html
 
+        with st.container():
+            file_type = st.radio(label="Format",
+                options=("csv", "html", "chat"), label_visibility="collapsed")
+            def build_data(chat):
+                return (to_csv if file_type == "csv" else to_html)(chat)
+            file_name = st.text_input("ÆÄÀÏ¸í", squeeze_spaces(subject))
+            if file_name:
+                if file_type == "chat":
+                    file_path = file_name + "_" + \
+                        str(datetime.datetime.now())[5:19].replace(' ', '_') + ".chat"
+                    pickled_ = pickle.dumps(dict(chat_state), pickle.HIGHEST_PROTOCOL)
+                    st.download_button(label="È®ÀÎ", data=pickled_, file_name=file_path)
+                else:       # "csv" or "html"
+                    file_path = f"{file_name}.{file_type}"
+                    download = st.download_button(
+                            label="È®ÀÎ",
+                        data=build_data(pd.DataFrame({
+                            'Prompt': chat_state['prompt'],
+                            'Response': chat_state['generated'],
+                        })),
+                        file_name=file_path,
+                        mime=f'text/{file_type}')
+
+    with st.sidebar.expander("ºÒ·¯¿À±â", expanded=False):
+        conversation = st.file_uploader('´ëÈ­ ÆÄÀÏ ¾÷·Îµå', label_visibility='collapsed')
+        if conversation and st.button("È®ÀÎ",
+                key="ok_restore", help="ÀÌ ¸Ş´º¸¦ ½ÇÇàÇÏ¸é ÇöÀç ÁøÇàÁßÀÎ ´ëÈ­°¡ Áö¿öÁı´Ï´Ù!"):
+            # Read the bytes of the file into a bytes object
+            file_bytes = io.BytesIO(conversation.read())
+            # Load the bytes object into a Python object using the pickle module
+            saved_chat = pickle.load(file_bytes)
+            clear_chat(chat_state)
+            chat_state['prompt'] = saved_chat['prompt']
+            chat_state['generated'] = saved_chat['generated']
+            chat_state['messages'] = saved_chat['messages']
+            st.rerun()
+
+###
+
+# page_title
+
+GPT_MODEL = "gpt-4"
+# GPT_MODEL = "gpt-4-1106-preview"
+temperature = 0.1
+
+subject = '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'
+
+intro = "* ´ë½ÂºÒ±³ ¾ç¿ìÈ¸ ¹ß°£ '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'¿¡ ´ëÇÑ ÁúÀÇÀÀ´ä ¼­ºñ½ºÀÔ´Ï´Ù.<br/>* Ã¥ ³»¿ë°ú ´Ù¸¥ ³»¿ëÀÌ ¹İÈ¯µÇ´Â °æ¿ìµµ ÀÖÀ¸´Ï Âü°í¿ëÀ¸·Î¸¸ »ç¿ëÇÏ½Ã±â ¹Ù¶ø´Ï´Ù."
+
+logo_image = f'images/»î°ú¿µÈ¥ÀÇºñ¹Ğ.jpg'
+
+expertise = f"µµ¼­ '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'ÀÇ ³»¿ëÀ» Åë´ŞÇÏ°í ÀÖ´Â Àü¹®Á¶¾ğÀÚ"
+
+###
 # Launch the bot
 interact()
 
