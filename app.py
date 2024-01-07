@@ -100,7 +100,7 @@ def query_message(query, embeddings, model):
 
 def load_embeddings(name):
     source = "embeddings.csv"
-    embeddings = pd.read_csv(os.path.join("embeddings", source))
+    embeddings = pd.read_csv(source)
     embeddings.embedding = [eval(embedding) for embedding in embeddings.embedding]
     return embeddings
 
