@@ -281,7 +281,7 @@ def interact():
 GPT_MODEL = 'gpt-4'
 
 expertise = '대승불교 양우종'
-temperature = 0.3
+temperature = 0.2
 
 subject = '삶과 영혼의 비밀'
 intro = "* 대승불교 양우회 발간 '삶과 영혼의 비밀'에 대한 질의응답 서비스입니다.<br/>* 책 내용과 다른 내용이 반환되는 경우도 있으니 참고용으로만 사용하시기 바랍니다."
