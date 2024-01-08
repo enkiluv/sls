@@ -105,8 +105,8 @@ def query_message(query, embeddings, model):
         message += f"- {next_article}]\n\n"
     return i, message + "===단서 끝===\n\n"
 
-def load_embeddings(source, num_trees=10):
-    df = pd.read_csv(f"{source}.csv")
+def load_embeddings(num_trees=10):
+    df = pd.read_csv("embeddings.csv")
     df.embedding = [eval(embedding) for embedding in df.embedding]
 
     texts = df['text'].tolist()     # 텍스트 정보를 별도로 저장
@@ -160,7 +160,7 @@ def interact():
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
     # Embeddings
-    chat_state['embeddings'] = load_embeddings(squeeze_spaces(subject))
+    chat_state['embeddings'] = load_embeddings()
 
     # Generate a response
     def generate_response(query, is_first_attempt):
