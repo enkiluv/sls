@@ -1,18 +1,18 @@
-# -*- coding: utf-8 -*-
+# -*- coding: cp949 -*-
 
 import streamlit as st
 st.set_page_config(
-    page_title='ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€',
+    page_title='»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ',
     layout='wide',
     page_icon=':robot_face:',
 )
 
-from scipy import spatial
 import pandas as pd
 import openai   # For calling the OpenAI API
 import pickle
 import base64
 import io, os, re, random, datetime
+from annoy import AnnoyIndex
 from pathlib import Path
 from PIL import Image
 
@@ -85,24 +85,40 @@ def query_message(query, embeddings, model):
         top_n = 32
     else:
         top_n = 8
-    strings, relatednesses = strings_ranked_by_relatedness(
-        query,
-        embeddings,
-        lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2),
-        top_n,
-    )
 
-    message = f'ë‹¤ìŒ ë‹¨ì„œë“¤ì„ ì‚¬ìš©í•˜ì—¬ ì£¼ì–´ì§„ ì§ˆë¬¸ì— ì •í™•í•˜ê²Œ ë‹µí•´ì£¼ì„¸ìš”.\n\n\n===ë‹¨ì„œ ì‹œì‘===\n\n'
+    def annoy_search(query_vector, annoy_index, texts, n_neighbors=5):
+        nearest_ids, distances = annoy_index.get_nns_by_vector(query_vector, n_neighbors, include_distances=True)
+        nearest_texts_distances = [(texts[i], distances[j]) for j, i in enumerate(nearest_ids)]
+        return zip(*nearest_texts_distances)    # °¡Àå °¡±î¿î ÀÌ¿ôÀÇ ÅØ½ºÆ®¿Í °Å¸® ¹İÈ¯
+
+    # annoy_index, texts = embeddings
+    query_embedding_response = openai.Embedding.create(
+        model=EMBEDDING_MODEL,
+        input=query,
+    )
+    query_vector = query_embedding_response["data"][0]["embedding"]
+    strings, relatednesses = annoy_search(query_vector, *embeddings, top_n)
+
+    message = f'´ÙÀ½ ´Ü¼­µéÀ» »ç¿ëÇÏ¿© ÁÖ¾îÁø Áú¹®¿¡ Á¤È®ÇÏ°Ô ´äÇØÁÖ¼¼¿ä.\n\n\n===´Ü¼­ ½ÃÀÛ===\n\n'
     for i, string in enumerate(strings):
         next_article = string.strip() + "\n"
         message += f"- {next_article}]\n\n"
-    return i, message + "===ë‹¨ì„œ ë===\n\n"
+    return i, message + "===´Ü¼­ ³¡===\n\n"
 
-def load_embeddings(name):
-    source = "embeddings.csv"
-    embeddings = pd.read_csv(source)
-    embeddings.embedding = [eval(embedding) for embedding in embeddings.embedding]
-    return embeddings
+def load_embeddings(source, num_trees=10):
+    df = pd.read_csv(f"{source}.csv")
+    df.embedding = [eval(embedding) for embedding in df.embedding]
+
+    texts = df['text'].tolist()     # ÅØ½ºÆ® Á¤º¸¸¦ º°µµ·Î ÀúÀå
+    embeddings = df['embedding'].tolist()
+
+    embedding_dim = len(embeddings[0])
+    annoy_index = AnnoyIndex(embedding_dim, 'angular')
+    for i, embedding in enumerate(embeddings):
+        annoy_index.add_item(i, embedding)
+
+    annoy_index.build(num_trees)
+    return annoy_index, texts       # Annoy ÀÎµ¦½º¿Í ÅØ½ºÆ® Á¤º¸ ¹İÈ¯
 
 def img_to_bytes(img_path):
     with Image.open(img_path) as img:
@@ -153,8 +169,8 @@ def interact():
         if is_first_attempt:
             chat_state['messages'].append({
                 "role": "system",
-                "content": f"ë‹¹ì‹ ì€ {expertise}ì…ë‹ˆë‹¤."})
-            extended_prompt = prompt + f"(ìµœëŒ€í•œ ë‹µì„ í•˜ë ¤ ë…¸ë ¥í•˜ë˜, ë„ì €íˆ ë‹µì„ ì•Œ ìˆ˜ ì—†ëŠ” ê²½ìš° ë§ì„ ì§€ì–´ë‚´ì§€ ë§ê³  'ì£„ì†¡í•©ë‹ˆë‹¤. ê·¸ ì§ˆë¬¸ì— ëŒ€í•œ ë‹µì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.' ë¼ê³  í•´ì£¼ì„¸ìš”.)\n\nQUESTION: {query}"
+                "content": f"´ç½ÅÀº {expertise}ÀÔ´Ï´Ù."})
+            extended_prompt = prompt + f"(ÃÖ´ëÇÑ ´äÀ» ÇÏ·Á ³ë·ÂÇÏµÇ, µµÀúÈ÷ ´äÀ» ¾Ë ¼ö ¾ø´Â °æ¿ì ¸»À» Áö¾î³»Áö ¸»°í 'ÁË¼ÛÇÕ´Ï´Ù. ±× Áú¹®¿¡ ´ëÇÑ ´äÀ» Ã£À» ¼ö ¾ø½À´Ï´Ù.' ¶ó°í ÇØÁÖ¼¼¿ä.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -197,7 +213,7 @@ def interact():
             st.chat_message("assistant").write(chat_state.generated[i])
 
         # A new query
-        user_input = st.chat_input("ë¬´ì—‡ì„ ë„ì™€ë“œë¦´ê¹Œìš”?")
+        user_input = st.chat_input("¹«¾ùÀ» µµ¿Íµå¸±±î¿ä?")
         if user_input:
             st.chat_message("user").write(user_input)
             retries = 1
@@ -225,10 +241,10 @@ def interact():
             else:
                 chat_state['generated'].append(error_msgs)
                 if retries == MAX_RETRIES + 1:
-                    st.error("ì ì‹œ í›„ì— ë‹¤ì‹œ ì‹œë„í•´ ì£¼ì„¸ìš”.")
+                    st.error("Àá½Ã ÈÄ¿¡ ´Ù½Ã ½ÃµµÇØ ÁÖ¼¼¿ä.")
 
     # Bells and whistles
-    with st.sidebar.expander("ë‚´ë³´ë‚´ê¸°", expanded=False):
+    with st.sidebar.expander("³»º¸³»±â", expanded=False):
         def to_csv(dataframe):
             csv_buffer = io.StringIO()
             dataframe.to_csv(csv_buffer, index=False)
@@ -245,17 +261,17 @@ def interact():
             file_type = file_type.split()[-1].lower()
             def build_data(chat):
                 return (to_csv if file_type == "csv" else to_html)(chat)
-            file_name = st.text_input("íŒŒì¼ëª…", squeeze_spaces(subject))
+            file_name = st.text_input("ÆÄÀÏ¸í", squeeze_spaces(subject))
             if file_name:
                 if file_type == "chat":
                     file_path = file_name + "_" + \
                         str(datetime.datetime.now())[5:19].replace(' ', '_') + ".chat"
                     pickled_ = pickle.dumps(dict(chat_state), pickle.HIGHEST_PROTOCOL)
-                    st.download_button(label="í™•ì¸", data=pickled_, file_name=file_path)
+                    st.download_button(label="È®ÀÎ", data=pickled_, file_name=file_path)
                 else:       # "csv" or "html"
                     file_path = f"{file_name}.{file_type}"
                     download = st.download_button(
-                        label="í™•ì¸",
+                        label="È®ÀÎ",
                         data=build_data(pd.DataFrame({
                             'Prompt': chat_state['prompt'],
                             'Response': chat_state['generated'],
@@ -263,10 +279,10 @@ def interact():
                         file_name=file_path,
                         mime=f'text/{file_type}')
 
-    with st.sidebar.expander("ë¶ˆëŸ¬ì˜¤ê¸°", expanded=False):
-        conversation = st.file_uploader('ëŒ€í™” íŒŒì¼ ì—…ë¡œë“œ', label_visibility='collapsed')
-        if conversation and st.button("í™•ì¸",
-                key="ok_restore", help="ì´ ë©”ë‰´ë¥¼ ì‹¤í–‰í•˜ë©´ í˜„ì¬ ì§„í–‰ì¤‘ì¸ ëŒ€í™”ê°€ ì§€ì›Œì§‘ë‹ˆë‹¤!"):
+    with st.sidebar.expander("ºÒ·¯¿À±â", expanded=False):
+        conversation = st.file_uploader('´ëÈ­ ÆÄÀÏ ¾÷·Îµå', label_visibility='collapsed')
+        if conversation and st.button("È®ÀÎ",
+                key="ok_restore", help="ÀÌ ¸Ş´º¸¦ ½ÇÇàÇÏ¸é ÇöÀç ÁøÇàÁßÀÎ ´ëÈ­°¡ Áö¿öÁı´Ï´Ù!"):
             # Read the bytes of the file into a bytes object
             file_bytes = io.BytesIO(conversation.read())
             # Load the bytes object into a Python object using the pickle module
@@ -280,12 +296,13 @@ def interact():
 ###
 GPT_MODEL = 'gpt-4'
 
-expertise = 'ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°ì¢…'
+expertise = '´ë½ÂºÒ±³ ¾ç¿ìÁ¾'
 temperature = 0.2
 
-subject = 'ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€'
-intro = "* ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°íšŒ ë°œê°„ 'ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€'ì— ëŒ€í•œ ì§ˆì˜ì‘ë‹µ ì„œë¹„ìŠ¤ì…ë‹ˆë‹¤.<br/>* ì±… ë‚´ìš©ê³¼ ë‹¤ë¥¸ ë‚´ìš©ì´ ë°˜í™˜ë˜ëŠ” ê²½ìš°ë„ ìˆìœ¼ë‹ˆ ì°¸ê³ ìš©ìœ¼ë¡œë§Œ ì‚¬ìš©í•˜ì‹œê¸° ë°”ëë‹ˆë‹¤."
+subject = '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'
+intro = "* ´ë½ÂºÒ±³ ¾ç¿ìÈ¸ ¹ß°£ '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'¿¡ ´ëÇÑ ÁúÀÇÀÀ´ä ¼­ºñ½ºÀÔ´Ï´Ù.<br/>* Ã¥ ³»¿ë°ú ´Ù¸¥ ³»¿ëÀÌ ¹İÈ¯µÇ´Â °æ¿ìµµ ÀÖÀ¸´Ï Âü°í¿ëÀ¸·Î¸¸ »ç¿ëÇÏ½Ã±â ¹Ù¶ø´Ï´Ù."
 
 ###
 # Launch the bot
 interact()
+
