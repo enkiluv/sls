@@ -88,10 +88,24 @@ def query_message(query, embeddings, model):
     for i, string in enumerate(strings):
         next_article = string.strip() + "\n"
         message += f"- {next_article}]\n\n"
-    return i, message + "===단서 끝===\n\n"
+    return i, message + "===단서 끝===\n\n", strings
 
 def load_embeddings(num_trees=10):
-    df = pd.read_csv("embeddings.csv")
+    import zipfile
+
+    zip_file_path = "embeddings.zip"
+    csv_file_path = "embeddings.csv"
+    if os.path.exists(zip_file_path):
+        with zipfile.ZipFile(zip_file_path, 'r') as z:
+            for filename in z.namelist():
+                if filename.endswith('.csv'):
+                    with z.open(filename) as csv_file:
+                        df = pd.read_csv(csv_file)
+    elif os.path.exists(csv_file_path):
+        df = pd.read_csv(csv_file_path)
+    else:
+        raise Exception("CSV 파일 또는 Zip 파일이 존재하지 않습니다.")
+
     df.embedding = [eval(embedding) for embedding in df.embedding]
 
     texts = df['text'].tolist()     # 텍스트 정보를 별도로 저장
@@ -151,12 +165,13 @@ def interact():
     # Generate a response
     def generate_response(query, is_first_attempt):
         embeddings = chat_state['embeddings']
-        count, prompt = query_message(query, embeddings, model=GPT_MODEL)
+        count, prompt, clues = query_message(query, embeddings, model=GPT_MODEL)
         if is_first_attempt:
+            # `(단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 각 단서들에 대하여 응답 마지막에 1줄 이내로 정리해주세요.)'
             chat_state['messages'].append({
                 "role": "system",
                 "content": f"당신은 {expertise}입니다."})
-            extended_prompt = prompt + f"(최대한 답을 하려 노력하되, 도저히 답을 알 수 없는 경우 말을 지어내지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.) (단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들만을 찾아 어느 단서들을 사용했는지 '[단서출처] 제목'과 같이 간략히 요약하여 답 마지막에 bullet으로 리스트해주세요.)\n\nQUESTION: {query}"
+            extended_prompt = prompt + f"(도저히 답을 알 수 없는 경우 말을 지어내지 말고 '죄송합니다. 그 질문에 답할 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -166,6 +181,8 @@ def interact():
             print(extended_prompt)
             print("===========================================")
             print()
+
+            st.sidebar.dataframe(pd.DataFrame({'지식정보': clues}), hide_index=True)
 
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
@@ -286,7 +303,7 @@ expertise = '대승불교 양우종'
 temperature = 0.2
 
 subject = '삶과 영혼의 비밀'
-intro = "* 대승불교 양우회 발간 '삶과 영혼의 비밀'과 '대승불교 양우종'에 대한 질의응답 서비스입니다.<br/>* 질의에 대한 응답이 책 내용과 일치하지 않는 경우도 있으므로, 참고용으로만 활용하시기 바랍니다."
+intro = "* 대승불교 양우회 발간 '삶과 영혼의 비밀'과 '대승불교 양우종'에 대한 질의응답 서비스입니다.<br/>* 응답이 책 내용과 일치하지 않는 경우도 있으므로, 참고용으로만 활용하시기 바랍니다."
 
 ###
 # Launch the bot
