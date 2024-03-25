@@ -167,11 +167,13 @@ def interact():
         embeddings = chat_state['embeddings']
         count, prompt, clues = query_message(query, embeddings, model=GPT_MODEL)
         if is_first_attempt:
-            # `(단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 각 단서들에 대하여 응답 마지막에 1줄 이내로 정리해주세요.)'
             chat_state['messages'].append({
                 "role": "system",
                 "content": f"당신은 {expertise}입니다."})
-            extended_prompt = prompt + f"(도저히 답을 알 수 없는 경우 말을 지어내지 말고 '죄송합니다. 그 질문에 답할 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
+            extended_prompt = prompt + f"""
+도저히 답을 알 수 없는 경우 절대 말을 지어내지 말고 '죄송합니다. 그 질문에 답할 수 없습니다.' 라고 해주세요. 단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들에 대하여 응답 마지막에 bullet으로 최대한 간략히 요약 정리해주세요.'
+
+QUESTION: {query}"""
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -182,7 +184,8 @@ def interact():
             print("===========================================")
             print()
 
-            st.sidebar.dataframe(pd.DataFrame({'지식정보': clues}), hide_index=True)
+            with st.sidebar.expander("지식출처"):
+                st.dataframe(pd.DataFrame({'참고정보': clues}), hide_index=True)
 
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
