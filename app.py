@@ -59,37 +59,22 @@ def clear_chat(state):
     clear_one('generated')
     clear_one('messages')
 
-def strings_ranked_by_relatedness(query, embeddings, relatedness_fn, top_n):
-    """Returns a list of strings and relatednesses, sorted from most related to least."""
-    query_embedding_response = openai.Embedding.create(
-        model=EMBEDDING_MODEL,
-        input=query,
-    )
-    query_embedding = query_embedding_response["data"][0]["embedding"]
-    strings_and_relatednesses = [
-        (row["text"], relatedness_fn(query_embedding, row["embedding"]))
-        for i, row in embeddings.iterrows()
-    ]
-    strings_and_relatednesses.sort(key=lambda x: x[1], reverse=True)
-    strings, relatednesses = zip(*strings_and_relatednesses)
-
-    return strings[:top_n], relatednesses[:top_n]
-
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 64
-    elif model.startswith('gpt-4'):
-        top_n = 16
-    elif model.startswith('gpt-3.5-turbo'):
         top_n = 32
-    else:
+    elif model.startswith('gpt-4'):
         top_n = 8
+    elif model.startswith('gpt-3.5-turbo'):
+        top_n = 16
+    else:
+        top_n = 4
 
     def annoy_search(query_vector, annoy_index, texts, n_neighbors=5):
-        nearest_ids, distances = annoy_index.get_nns_by_vector(query_vector, n_neighbors, include_distances=True)
+        nearest_ids, distances = annoy_index.get_nns_by_vector(
+            query_vector, n_neighbors, include_distances=True)
         nearest_texts_distances = [(texts[i], distances[j]) for j, i in enumerate(nearest_ids)]
-        return zip(*nearest_texts_distances)    # 가장 가까운 이웃의 텍스트와 거리 반환
+        return zip(*nearest_texts_distances)
 
     # annoy_index, texts = embeddings
     query_embedding_response = openai.Embedding.create(
@@ -150,7 +135,8 @@ def interact():
 
     if logo_image and os.path.exists(logo_image):
         image_html = img_to_html(logo_image)
-        st.sidebar.markdown("<p style='text-align: center;'>"+image_html+"</p>", unsafe_allow_html=True)
+        st.sidebar.markdown(
+            "<p style='text-align: center;'>"+image_html+"</p>", unsafe_allow_html=True)
         st.sidebar.markdown("")
 
     init_chat(chat_state)
@@ -170,7 +156,7 @@ def interact():
             chat_state['messages'].append({
                 "role": "system",
                 "content": f"당신은 {expertise}입니다."})
-            extended_prompt = prompt + f"(최대한 답을 하려 노력하되, 도저히 답을 알 수 없는 경우 말을 지어내지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.)\n\nQUESTION: {query}"
+            extended_prompt = prompt + f"(최대한 답을 하려 노력하되, 도저히 답을 알 수 없는 경우 말을 지어내지 말고 '죄송합니다. 그 질문에 대한 답을 찾을 수 없습니다.' 라고 해주세요.) (단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들만을 찾아 어느 단서들을 사용했는지 '[단서출처] 제목'과 같이 간략히 요약하여 답 마지막에 bullet으로 리스트해주세요.)\n\nQUESTION: {query}"
             chat_state['messages'].append({
                 "role": "user",
                 "content": extended_prompt})
@@ -300,7 +286,7 @@ expertise = '대승불교 양우종'
 temperature = 0.2
 
 subject = '삶과 영혼의 비밀'
-intro = "* 대승불교 양우회 발간 '삶과 영혼의 비밀'에 대한 질의응답 서비스입니다.<br/>* 책 내용과 다른 내용이 반환되는 경우도 있으니 참고용으로만 사용하시기 바랍니다."
+intro = "* 대승불교 양우회 발간 '삶과 영혼의 비밀'과 '대승불교 양우종'에 대한 질의응답 서비스입니다.<br/>* 질의에 대한 응답이 책 내용과 일치하지 않는 경우도 있으므로, 참고용으로만 활용하시기 바랍니다."
 
 ###
 # Launch the bot
