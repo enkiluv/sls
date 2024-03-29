@@ -306,7 +306,7 @@ expertise = '대승불교 양우종'
 temperature = 0.2
 
 subject = '삶과 영혼의 비밀'
-intro = "* 대승불교 양우회 발간 <span style='color: skyblue;'>삶과 영혼의 비밀</span>과 <span style='color: orange'>대승불교 양우종</span>의 내용에 대한 질의응답 서비스입니다.<br/>* 질의에 대한 응답이 책 내용과 다른 경우도 있으므로 참고용으로만 활용하시기 바랍니다."
+intro = "* 대승불교 양우회 발간 <span style='color: skyblue;'>삶과 영혼의 비밀</span>과 <span style='color: orange'>생활 속의 대자유</span>의 내용에 대한 질의응답 서비스입니다.<br/>* 질의에 대한 응답이 책 내용과 다른 경우도 있으므로 참고용으로만 활용하시기 바랍니다."
 
 ###
 # Launch the bot
