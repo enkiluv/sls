@@ -84,7 +84,7 @@ def query_message(query, embeddings, model):
     query_vector = query_embedding_response["data"][0]["embedding"]
     strings, relatednesses = annoy_search(query_vector, *embeddings, top_n)
 
-    message = f'다음 단서들을 사용하여 주어진 질문에 정확하게 답해주세요.\n\n\n===단서 시작===\n\n'
+    message = f'다음 단서들을 사용하여 주어진 질문에 정확하게 답해주세요. 모든 응답은 {expertise}에 합당한 용어만 사용해주세요. (예: "아멘"과 같은 기독교식 용어는 질문에서 직접 요청되지 않은 한 절대 사용하지 않아야 합니다.)\n\n\n===단서 시작===\n\n'
     for i, string in enumerate(strings):
         next_article = string.strip() + "\n"
         message += f"- {next_article}]\n\n"
@@ -169,7 +169,7 @@ def interact():
         if is_first_attempt:
             chat_state['messages'].append({
                 "role": "system",
-                "content": f"당신은 {expertise}입니다."})
+                "content": f"당신은 {expertise} 전문가입니다."})
             extended_prompt = prompt + f"""
 도저히 답을 알 수 없는 경우 절대 말을 지어내지 말고 '죄송합니다. 그 질문에 답할 수 없습니다.' 라고 해주세요. 단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들에 대하여 응답 마지막에 bullet으로 최대한 간략히 요약 정리해주세요.'
 
