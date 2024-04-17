@@ -301,8 +301,8 @@ QUESTION: {query}"""
             st.rerun()
 
 ###
-GPT_MODEL = 'gpt-4'
 # GPT_MODEL = 'gpt-3.5-turbo'
+GPT_MODEL = 'gpt-4-turbo'
 
 expertise = '대승불교 양우종'
 temperature = 0.2
