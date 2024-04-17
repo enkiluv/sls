@@ -164,8 +164,9 @@ def interact():
 
     # Generate a response
     def generate_response(query, is_first_attempt):
-        embeddings = chat_state['embeddings']
-        count, prompt, clues = query_message(query, embeddings, model=GPT_MODEL)
+        with st.spinner("단서 검색 중..."):
+            embeddings = chat_state['embeddings']
+            count, prompt, clues = query_message(query, embeddings, model=GPT_MODEL)
         if is_first_attempt:
             chat_state['messages'].append({
                 "role": "system",
@@ -300,8 +301,8 @@ QUESTION: {query}"""
             st.rerun()
 
 ###
-# GPT_MODEL = 'gpt-4'
-GPT_MODEL = 'gpt-3.5-turbo'
+GPT_MODEL = 'gpt-4'
+# GPT_MODEL = 'gpt-3.5-turbo'
 
 expertise = '대승불교 양우종'
 temperature = 0.2
