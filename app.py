@@ -62,13 +62,13 @@ def clear_chat(state):
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 32
+        top_n = 48
     elif model.startswith('gpt-4'):
-        top_n = 8
+        top_n = 12
     elif model.startswith('gpt-3.5-turbo'):
-        top_n = 16
+        top_n = 24
     else:
-        top_n = 4
+        top_n = 6
 
     def annoy_search(query_vector, annoy_index, texts, n_neighbors=5):
         nearest_ids, distances = annoy_index.get_nns_by_vector(
@@ -172,7 +172,7 @@ def interact():
                 "role": "system",
                 "content": f"당신은 {expertise} 전문가입니다."})
             extended_prompt = prompt + f"""
-도저히 답을 알 수 없는 경우 절대 말을 지어내지 말고 '죄송합니다. 그 질문에 답할 수 없습니다.' 라고 해주세요. 단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들에 대하여 응답 마지막에 bullet으로 최대한 간략히 요약 정리해주세요.'
+도저히 답을 알 수 없는 경우 절대 말을 지어내지 말고 '죄송합니다. 그 질문에 답할 수 없습니다.' 라고 해주세요. 단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들에 대하여 응답 마지막에 bullet으로 3건 이내로 간략히 요약 정리해주세요.'
 
 QUESTION: {query}"""
             chat_state['messages'].append({
@@ -301,8 +301,8 @@ QUESTION: {query}"""
             st.rerun()
 
 ###
-# GPT_MODEL = 'gpt-3.5-turbo'
-GPT_MODEL = 'gpt-4-turbo'
+# GPT_MODEL = 'gpt-4'
+GPT_MODEL = 'gpt-3.5-turbo'
 
 expertise = '대승불교 양우종'
 temperature = 0.2
