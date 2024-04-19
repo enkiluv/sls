@@ -1,8 +1,8 @@
-# -*- coding: cp949 -*-
+# -*- coding: utf-8 -*-
 
 import streamlit as st
 st.set_page_config(
-    page_title='»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ',
+    page_title='ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€',
     layout='wide',
     page_icon=':robot_face:',
 )
@@ -12,7 +12,7 @@ import openai   # For calling the OpenAI API
 import pickle
 import base64
 import io, os, re, random, datetime
-from annoy import AnnoyIndex
+from scipy import spatial
 from pathlib import Path
 from PIL import Image
 
@@ -50,47 +50,67 @@ def init_chat(state):
             state[key] = value
     set_chat('prompt', [])
     set_chat('generated', [])
-    set_chat('messages', [])
 
 def clear_chat(state):
     def clear_one(key):
         del state[key][:]
     clear_one('prompt')
     clear_one('generated')
-    clear_one('messages')
+
+def compute_embedding(segment, model=EMBEDDING_MODEL):
+    return openai.Embedding.create(input=[segment], model=model)['data'][0]['embedding']
+
+def related_strings(query, embeddings, relatedness_fn, top_n):
+    query_embedding = compute_embedding(query)
+    strings_and_relatednesses = [
+        (row["text"], relatedness_fn(query_embedding, row["embedding"]))
+        for _, row in embeddings.iterrows()
+        if relatedness_fn(query_embedding, row["embedding"]) > 0.82
+    ]
+    strings_and_relatednesses.sort(key=lambda x: x[1], reverse=True)
+    
+    if not strings_and_relatednesses:
+        return [], []  # ê²°ê³¼ê°€ ì—†ì„ ê²½ìš° ë¹ˆ ë¦¬ìŠ¤íŠ¸ ë°˜í™˜
+    strings, relatednesses = zip(*strings_and_relatednesses)
+    return strings[:top_n], relatednesses[:top_n]
 
 def query_message(query, embeddings, model):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 48
+        top_n = 40
     elif model.startswith('gpt-4'):
-        top_n = 12
+        top_n = 10
     elif model.startswith('gpt-3.5-turbo'):
-        top_n = 24
+        top_n = 20
     else:
-        top_n = 6
+        top_n = 5
 
-    def annoy_search(query_vector, annoy_index, texts, n_neighbors=5):
-        nearest_ids, distances = annoy_index.get_nns_by_vector(
-            query_vector, n_neighbors, include_distances=True)
-        nearest_texts_distances = [(texts[i], distances[j]) for j, i in enumerate(nearest_ids)]
-        return zip(*nearest_texts_distances)
-
-    # annoy_index, texts = embeddings
-    query_embedding_response = openai.Embedding.create(
-        model=EMBEDDING_MODEL,
-        input=query,
+    strings, relatednesses = related_strings(
+        query,
+        embeddings,
+        lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2),
+        top_n
     )
-    query_vector = query_embedding_response["data"][0]["embedding"]
-    strings, relatednesses = annoy_search(query_vector, *embeddings, top_n)
 
-    message = f'´ÙÀ½ ´Ü¼­µéÀ» »ç¿ëÇÏ¿© ÁÖ¾îÁø Áú¹®¿¡ Á¤È®ÇÏ°Ô ´äÇØÁÖ¼¼¿ä. ¸ğµç ÀÀ´äÀº {expertise}¿¡ ÇÕ´çÇÑ ¿ë¾î¸¸ »ç¿ëÇØÁÖ¼¼¿ä. (¿¹: "¾Æ¸à"°ú °°Àº ±âµ¶±³½Ä ¿ë¾î´Â Áú¹®¿¡¼­ Á÷Á¢ ¿äÃ»µÇÁö ¾ÊÀº ÇÑ Àı´ë »ç¿ëÇÏÁö ¾Ê¾Æ¾ß ÇÕ´Ï´Ù.)\n\n\n===´Ü¼­ ½ÃÀÛ===\n\n'
-    for i, string in enumerate(strings):
-        next_article = string.strip() + "\n"
-        message += f"- {next_article}]\n\n"
-    return i, message + "===´Ü¼­ ³¡===\n\n", strings
+    clues = ""
+    for i, string in enumerate(strings):  # TODO: Must check if the clues are within the token-budget
+        clues += string.strip() + "\n\n"
+    if not clues:
+        i = 0
+        prompt = "ì •ë³´ê°€ ë¶€ì¡±í•˜ì—¬ ë‹µì„ ì•Œ ìˆ˜ ì—†ìŠµë‹ˆë‹¤ ë¼ê³  ë§í•´ì£¼ì„¸ìš”."
+    else:
+        prompt = f"""
+ë‹¤ìŒ ë‹¨ì„œë“¤ ê°€ìš´ë° ì§ˆë¬¸ì˜ ì·¨ì§€(ì˜ë„)ì™€ í™•ì‹¤íˆ ê´€ë ¨ëœ ë‹¨ì„œë“¤ë§Œì„ ì‚¬ìš©í•˜ì—¬ ì •í™•í•˜ê²Œ ë‹µí•˜ì„¸ìš”.
+ë‹¨ì„œë“¤ì´ ì§ˆë¬¸ì—ì„œ ì–¸ê¸‰ëœ í•µì‹¬ ë‹¨ì–´ë‚˜ ê°œë…ì„ í¬í•¨í•˜ì§€ ì•Šìœ¼ë©´ ëª¨ë¥´ê² ìŠµë‹ˆë‹¤ ë¼ê³  ì§§ê²Œ ë§í•´ì£¼ì„¸ìš”.
+ë‹µë³€ì€ {expertise} ì „ë¬¸ê°€ì˜ ìš©ì–´ë‚˜ ë¬¸ì²´ë¥¼ ì ê·¹ ì‚¬ìš©í•˜ê³ , ê³µì†í•œ ë§íˆ¬ë¥¼ ì‚¬ìš©í•´ì£¼ì„¸ìš”.
 
-def load_embeddings(num_trees=10):
+{clues}
+
+Question: {query}
+"""    
+    return i, prompt, strings
+    
+def load_embeddings():
     import zipfile
 
     zip_file_path = "embeddings.zip"
@@ -104,20 +124,10 @@ def load_embeddings(num_trees=10):
     elif os.path.exists(csv_file_path):
         df = pd.read_csv(csv_file_path)
     else:
-        raise Exception("CSV ÆÄÀÏ ¶Ç´Â Zip ÆÄÀÏÀÌ Á¸ÀçÇÏÁö ¾Ê½À´Ï´Ù.")
+        raise Exception("CSV íŒŒì¼ ë˜ëŠ” Zip íŒŒì¼ì´ ì¡´ì¬í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.")
 
     df.embedding = [eval(embedding) for embedding in df.embedding]
-
-    texts = df['text'].tolist()     # ÅØ½ºÆ® Á¤º¸¸¦ º°µµ·Î ÀúÀå
-    embeddings = df['embedding'].tolist()
-
-    embedding_dim = len(embeddings[0])
-    annoy_index = AnnoyIndex(embedding_dim, 'angular')
-    for i, embedding in enumerate(embeddings):
-        annoy_index.add_item(i, embedding)
-
-    annoy_index.build(num_trees)
-    return annoy_index, texts       # Annoy ÀÎµ¦½º¿Í ÅØ½ºÆ® Á¤º¸ ¹İÈ¯
+    return df
 
 def img_to_bytes(img_path):
     with Image.open(img_path) as img:
@@ -149,8 +159,7 @@ def interact():
 
     if logo_image and os.path.exists(logo_image):
         image_html = img_to_html(logo_image)
-        st.sidebar.markdown(
-            "<p style='text-align: center;'>"+image_html+"</p>", unsafe_allow_html=True)
+        st.sidebar.markdown("<p style='text-align: center;'>"+image_html+"</p>", unsafe_allow_html=True)
         st.sidebar.markdown("")
 
     init_chat(chat_state)
@@ -160,41 +169,37 @@ def interact():
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
     # Embeddings
-    chat_state['embeddings'] = load_embeddings()
+    if 'embeddings' not in chat_state:
+        with st.spinner("ìƒ‰ì¸ ì •ë³´ë¥¼ ë¡œë“œí•˜ëŠ” ì¤‘..."):
+            chat_state['embeddings'] = load_embeddings()
 
     # Generate a response
     def generate_response(query, is_first_attempt):
-        with st.spinner("´Ü¼­ °Ë»ö Áß..."):
-            embeddings = chat_state['embeddings']
+        embeddings = chat_state['embeddings']
+        messages = []
+        with st.spinner("ë‹¨ì„œ íƒìƒ‰ ì¤‘..."):
             count, prompt, clues = query_message(query, embeddings, model=GPT_MODEL)
         if is_first_attempt:
-            chat_state['messages'].append({
-                "role": "system",
-                "content": f"´ç½ÅÀº {expertise} Àü¹®°¡ÀÔ´Ï´Ù."})
-            extended_prompt = prompt + f"""
-µµÀúÈ÷ ´äÀ» ¾Ë ¼ö ¾ø´Â °æ¿ì Àı´ë ¸»À» Áö¾î³»Áö ¸»°í 'ÁË¼ÛÇÕ´Ï´Ù. ±× Áú¹®¿¡ ´äÇÒ ¼ö ¾ø½À´Ï´Ù.' ¶ó°í ÇØÁÖ¼¼¿ä. ´Ü¼­¸¦ È°¿ëÇÏ¿© ´äÀ» Ã£Àº °æ¿ì, ½ÇÁ¦ ÀÀ´ä¿¡¼­ »ç¿ëµÈ ´Ü¼­µé¿¡ ´ëÇÏ¿© ÀÀ´ä ¸¶Áö¸·¿¡ bulletÀ¸·Î 3°Ç ÀÌ³»·Î °£·«È÷ ¿ä¾à Á¤¸®ÇØÁÖ¼¼¿ä.'
-
-QUESTION: {query}"""
-            chat_state['messages'].append({
-                "role": "user",
-                "content": extended_prompt})
-            # st.info(extended_prompt)
+            messages.append({"role": "system", "content": f"ë‹¹ì‹ ì€ {expertise} ì „ë¬¸ê°€ì…ë‹ˆë‹¤."})
+            messages.append({"role": "user", "content": prompt})
+            
+            # st.info(prompt)
             print()
             print("===========================================")
-            print(extended_prompt)
+            print(prompt)
             print("===========================================")
             print()
 
-            with st.sidebar.expander("Áö½ÄÃâÃ³"):
-                st.dataframe(pd.DataFrame({'Âü°íÁ¤º¸': clues}), hide_index=True)
-
+            with st.sidebar.expander("ì§€ì‹ì¶œì²˜"):
+                st.dataframe(pd.DataFrame({'ì°¸ê³ ì •ë³´': clues}), hide_index=True)
+        
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             full_response = ""
             for response in openai.ChatCompletion.create(
                     model=GPT_MODEL,
                     temperature=temperature,
-                    messages=chat_state['messages'],
+                    messages=messages,
                     n=1,
                     stop=None,
                     stream=True):
@@ -202,12 +207,7 @@ QUESTION: {query}"""
                 message_placeholder.markdown(full_response + "_")
             new_answer = full_response.strip()
             message_placeholder.markdown(new_answer)
-        # Adjust messages to keep as minimal information as possible
-        if len(chat_state['messages']) >= 2:
-            del chat_state['messages'][-2]    # Remove the "system" role
-            chat_state['messages'][-1] = {"role": "user", "content": query}
-        # Keep the response for future references
-        chat_state['messages'].append({"role": "assistant", "content": new_answer})
+
         return full_response
 
     def message_response(text):
@@ -220,7 +220,7 @@ QUESTION: {query}"""
             st.chat_message("assistant").write(chat_state.generated[i])
 
         # A new query
-        user_input = st.chat_input("¹«¾ùÀ» µµ¿Íµå¸±±î¿ä?")
+        user_input = st.chat_input("ë¬´ì—‡ì„ ë„ì™€ë“œë¦´ê¹Œìš”?")
         if user_input:
             st.chat_message("user").write(user_input)
             retries = 1
@@ -229,15 +229,10 @@ QUESTION: {query}"""
                     generated = generate_response(user_input, retries==1)
                     break
                 except Exception as e:
-                    error_msgs = f"{str(e)}"
-                    # st.error(error_msgs)
+                    error_msgs = str(e)
                     if "reduce the length of the messages" in error_msgs:
-                        if len(chat_state['messages']) > 2:
-                            count = random.randint(1, len(chat_state['messages']) - 2)
-                            for _ in range(count):
-                                del chat_state['messages'][0]     # LRU-principle
-                        retries += 1
-                        # continue
+                        st.error(error_msgs)
+                        break
                     else:
                         retries = MAX_RETRIES + 2
                         break
@@ -248,10 +243,10 @@ QUESTION: {query}"""
             else:
                 chat_state['generated'].append(error_msgs)
                 if retries == MAX_RETRIES + 1:
-                    st.error("Àá½Ã ÈÄ¿¡ ´Ù½Ã ½ÃµµÇØ ÁÖ¼¼¿ä.")
+                    st.error("ì ì‹œ í›„ì— ë‹¤ì‹œ ì‹œë„í•´ ì£¼ì„¸ìš”.")
 
     # Bells and whistles
-    with st.sidebar.expander("³»º¸³»±â", expanded=False):
+    with st.sidebar.expander("ë‚´ë³´ë‚´ê¸°", expanded=False):
         def to_csv(dataframe):
             csv_buffer = io.StringIO()
             dataframe.to_csv(csv_buffer, index=False)
@@ -268,17 +263,17 @@ QUESTION: {query}"""
             file_type = file_type.split()[-1].lower()
             def build_data(chat):
                 return (to_csv if file_type == "csv" else to_html)(chat)
-            file_name = st.text_input("ÆÄÀÏ¸í", squeeze_spaces(subject))
+            file_name = st.text_input("íŒŒì¼ëª…", squeeze_spaces(subject))
             if file_name:
                 if file_type == "chat":
                     file_path = file_name + "_" + \
                         str(datetime.datetime.now())[5:19].replace(' ', '_') + ".chat"
                     pickled_ = pickle.dumps(dict(chat_state), pickle.HIGHEST_PROTOCOL)
-                    st.download_button(label="È®ÀÎ", data=pickled_, file_name=file_path)
+                    st.download_button(label="í™•ì¸", data=pickled_, file_name=file_path)
                 else:       # "csv" or "html"
                     file_path = f"{file_name}.{file_type}"
                     download = st.download_button(
-                        label="È®ÀÎ",
+                        label="í™•ì¸",
                         data=build_data(pd.DataFrame({
                             'Prompt': chat_state['prompt'],
                             'Response': chat_state['generated'],
@@ -286,10 +281,10 @@ QUESTION: {query}"""
                         file_name=file_path,
                         mime=f'text/{file_type}')
 
-    with st.sidebar.expander("ºÒ·¯¿À±â", expanded=False):
-        conversation = st.file_uploader('´ëÈ­ ÆÄÀÏ ¾÷·Îµå', label_visibility='collapsed')
-        if conversation and st.button("È®ÀÎ",
-                key="ok_restore", help="ÀÌ ¸Ş´º¸¦ ½ÇÇàÇÏ¸é ÇöÀç ÁøÇàÁßÀÎ ´ëÈ­°¡ Áö¿öÁı´Ï´Ù!"):
+    with st.sidebar.expander("ë¶ˆëŸ¬ì˜¤ê¸°", expanded=False):
+        conversation = st.file_uploader('ëŒ€í™” íŒŒì¼ ì—…ë¡œë“œ', label_visibility='collapsed')
+        if conversation and st.button("í™•ì¸",
+                key="ok_restore", help="ì´ ë©”ë‰´ë¥¼ ì‹¤í–‰í•˜ë©´ í˜„ì¬ ì§„í–‰ì¤‘ì¸ ëŒ€í™”ê°€ ì§€ì›Œì§‘ë‹ˆë‹¤!"):
             # Read the bytes of the file into a bytes object
             file_bytes = io.BytesIO(conversation.read())
             # Load the bytes object into a Python object using the pickle module
@@ -297,20 +292,17 @@ QUESTION: {query}"""
             clear_chat(chat_state)
             chat_state['prompt'] = saved_chat['prompt']
             chat_state['generated'] = saved_chat['generated']
-            chat_state['messages'] = saved_chat['messages']
             st.rerun()
 
 ###
-# GPT_MODEL = 'gpt-4'
-GPT_MODEL = 'gpt-3.5-turbo'
+GPT_MODEL = 'gpt-3.5-turbo-16k'
 
-expertise = '´ë½ÂºÒ±³ ¾ç¿ìÁ¾'
-temperature = 0.2
+expertise = 'ëŒ€ìŠ¹ë¶ˆêµ ì–‘ìš°ì¢…'
+temperature = 0
 
-subject = '»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ'
-intro = "* ´ë½ÂºÒ±³ ¾ç¿ìÈ¸ ¹ß°£ <span style='color: skyblue;'>»î°ú ¿µÈ¥ÀÇ ºñ¹Ğ</span>°ú <span style='color: orange'>»ıÈ° ¼ÓÀÇ ´ëÀÚÀ¯</span>ÀÇ ³»¿ë¿¡ ´ëÇÑ ÁúÀÇÀÀ´ä ¼­ºñ½ºÀÔ´Ï´Ù.<br/>* Á¦°øµÈ Á¤º¸°¡ Á¤È®ÇÏÁö ¾ÊÀ» ¼ö ÀÖÀ¸´Ï, ÀÌ Á¤º¸¸¦ Âü°íÀÚ·á·Î¸¸ »ç¿ëÇÏ°í ÇÊ¿äÇÏ¸é Á÷Á¢ ´õ È®ÀÎÇØ º¸¼¼¿ä."
+subject = 'ì‚¶ê³¼ ì˜í˜¼ì˜ ë¹„ë°€'
+intro = '* ì œê³µëœ ì •ë³´ê°€ ì •í™•í•˜ì§€ ì•Šì„ ìˆ˜ ìˆìœ¼ë‹ˆ, ì´ ì •ë³´ë¥¼ ì°¸ê³ ìë£Œë¡œë§Œ ì‚¬ìš©í•˜ê³  í•„ìš”í•˜ë©´ ì§ì ‘ ë” í™•ì¸í•´ ë³´ì„¸ìš”.'
 
 ###
 # Launch the bot
 interact()
-
