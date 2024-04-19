@@ -2,14 +2,14 @@
 
 import streamlit as st
 st.set_page_config(
-    page_title='삶과 영혼의 비밀',
+    page_title='삶과영혼의비밀',
     layout='wide',
     page_icon=':robot_face:',
 )
 
 import pandas as pd
 import openai   # For calling the OpenAI API
-import pickle
+import pickle, zipfile
 import base64
 import io, os, re, random, datetime
 from scipy import spatial
@@ -31,7 +31,17 @@ def squeeze_spaces(s):
     s_without_spaces = re.sub(r'\s+', '', s)
     return s_without_spaces
 
+def load_embeddings(pkz="embeddings.pkz"):
+    with open(pkz, 'rb') as f:
+        zip_data = io.BytesIO(f.read())
 
+    with zipfile.ZipFile(zip_data, 'r') as zf:
+        first_file_name = zf.namelist()[0]
+        with zf.open(first_file_name) as pkl_file:
+            pickle_data = io.BytesIO(pkl_file.read())
+            data = pickle.load(pickle_data)
+    return data
+    
 # Set model and map model names to OpenAI model IDs
 EMBEDDING_MODEL = "text-embedding-ada-002"
 
@@ -64,8 +74,8 @@ def related_strings(query, embeddings, relatedness_fn, top_n):
     query_embedding = compute_embedding(query)
     strings_and_relatednesses = [
         (row["text"], relatedness_fn(query_embedding, row["embedding"]))
-        for _, row in embeddings.iterrows()
-        if relatedness_fn(query_embedding, row["embedding"]) > 0.82
+        for i, row in embeddings.iterrows()
+        if relatedness_fn(query_embedding, row["embedding"]) > 0.825
     ]
     strings_and_relatednesses.sort(key=lambda x: x[1], reverse=True)
     
@@ -74,7 +84,7 @@ def related_strings(query, embeddings, relatedness_fn, top_n):
     strings, relatednesses = zip(*strings_and_relatednesses)
     return strings[:top_n], relatednesses[:top_n]
 
-def query_message(query, embeddings, model):
+def query_message(query, prevs, model, embeddings):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
         top_n = 40
@@ -86,49 +96,23 @@ def query_message(query, embeddings, model):
         top_n = 5
 
     strings, relatednesses = related_strings(
-        query,
+        query + prevs,
         embeddings,
         lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2),
         top_n
     )
+    chat_state.lookup = strings, relatednesses
 
     clues = ""
-    for i, string in enumerate(strings):  # TODO: Must check if the clues are within the token-budget
+    for string in strings:  # TODO: Must check if the clues are within the token-budget
         clues += string.strip() + "\n\n"
     if not clues:
-        i = 0
-        prompt = "정보가 부족하여 답을 알 수 없습니다 라고 말해주세요."
-    else:
-        prompt = f"""
-다음 단서들 가운데 질문의 취지(의도)와 확실히 관련된 단서들만을 사용하여 정확하게 답하세요.
-단서들이 질문에서 언급된 핵심 단어나 개념을 포함하지 않으면 모르겠습니다 라고 짧게 말해주세요.
-답변은 {expertise} 전문가의 용어나 문체를 적극 사용하고, 공손한 말투를 사용해주세요.
+        return "정보가 부족하여 답을 알 수 없습니다 라고 말해주세요.", []
+    return f"""
+** 다음 단서들 가운데 질문의 취지(의도)와 확실히 관련된 단서들만을 사용하여 absolutely factual 하게 답하세요. 단서들이 질문에서 언급된 핵심 단어나 개념을 포함하지 않으면 모르겠습니다 라고 짧게 말해주세요. 단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들에 대하여 응답 마지막에 bullet으로 2건 이내로 간략히 요약 정리해주세요. 답변은 {expertise} 전문가의 용어나 문체를 적극 사용하고, 공손한 말투를 사용해주세요. **
 
-{clues}
-
-Question: {query}
-"""    
-    return i, prompt, strings
+{clues}""", strings
     
-def load_embeddings():
-    import zipfile
-
-    zip_file_path = "embeddings.zip"
-    csv_file_path = "embeddings.csv"
-    if os.path.exists(zip_file_path):
-        with zipfile.ZipFile(zip_file_path, 'r') as z:
-            for filename in z.namelist():
-                if filename.endswith('.csv'):
-                    with z.open(filename) as csv_file:
-                        df = pd.read_csv(csv_file)
-    elif os.path.exists(csv_file_path):
-        df = pd.read_csv(csv_file_path)
-    else:
-        raise Exception("CSV 파일 또는 Zip 파일이 존재하지 않습니다.")
-
-    df.embedding = [eval(embedding) for embedding in df.embedding]
-    return df
-
 def img_to_bytes(img_path):
     with Image.open(img_path) as img:
         original_width, original_height = img.size
@@ -175,23 +159,25 @@ def interact():
 
     # Generate a response
     def generate_response(query, is_first_attempt):
-        embeddings = chat_state['embeddings']
-        messages = []
+        prevs = ""
+        if len(chat_state.prompt) > 0:
+            for i, _prompt in enumerate(chat_state.prompt):
+                prevs += f"\n{i+1}: {_prompt}"
+        context = ""
         with st.spinner("단서 탐색 중..."):
-            count, prompt, clues = query_message(query, embeddings, model=GPT_MODEL)
-        if is_first_attempt:
-            messages.append({"role": "system", "content": f"당신은 {expertise} 전문가입니다."})
-            messages.append({"role": "user", "content": prompt})
-            
-            # st.info(prompt)
-            print()
-            print("===========================================")
-            print(prompt)
-            print("===========================================")
-            print()
+            context, clues = query_message(query, prevs, GPT_MODEL, chat_state.embeddings) 
+        if prevs:
+            context += "\n** 이전에 다음과 같은 질문들을 차례로 한 적이 있으니 새로운 질문의 의도나 맥락을 파악할 때 참고하세요. **\n" + prevs
 
-            with st.sidebar.expander("지식출처"):
-                st.dataframe(pd.DataFrame({'참고정보': clues}), hide_index=True)
+        prompt = context + f"\n\n[[질문]] {query}"
+        user_content = f"{prompt}\n\nUse Korean language if not stated otherwise. Provide only factual answers. If uncertain, just say 'unknown' and never fabricate one. Pretend as if you were a {expertise} expert."
+        user_content = re.sub(r'\n\s*\n', '\n\n', user_content)
+        print(user_content)
+
+        system_content = f"You are an absolutely factual {expertise} expert speaking Korean language natively."
+        
+        with st.sidebar.expander("지식출처"):
+            st.dataframe(pd.DataFrame({'참고정보': clues}), hide_index=True)
         
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
@@ -199,17 +185,20 @@ def interact():
             for response in openai.ChatCompletion.create(
                     model=GPT_MODEL,
                     temperature=temperature,
-                    messages=messages,
+                    messages=[
+                        {"role": "system", "content": system_content},
+                        {"role": "user", "content": user_content}
+                    ],
                     n=1,
+                    # top_p=1,
                     stop=None,
                     stream=True):
                 full_response += response.choices[0].delta.get("content", "")
                 message_placeholder.markdown(full_response + "_")
             new_answer = full_response.strip()
             message_placeholder.markdown(new_answer)
-
-        return full_response
-
+        return new_answer
+        
     def message_response(text):
         # st.success(text)
         st.markdown(f"<div style='background-color: #efefef; color: black; padding: 15px; font-size: 13px;'>{text}</div><br>", unsafe_allow_html=True)
