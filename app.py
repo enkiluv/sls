@@ -174,7 +174,7 @@ def interact():
         if prevs:
             context += f"\n\n이전에 {prevs}와 같은 질문들을 한 적이 있으니 아래 질문의 의도와 맥락을 파악하기 위해 참고만 하고 그 질문들에 대한 답은 절대 하지 마세요.\n"
 
-        context += f"\n\n[**** 이 질문에 답해주세요: {query} ****]"
+        context += f"\n\n[!!!! 이 질문에 답해주세요: {query} !!!!]"
         
         user_content = f"{context}\n\nUse Korean language if not stated elsewhere. Provide only factual answers. Pretend as if you were a {expertise} expert."
         user_content = re.sub(r'\n\s*\n', '\n\n', user_content)
