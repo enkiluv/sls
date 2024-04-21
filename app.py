@@ -43,10 +43,10 @@ def load_embeddings(pkz="embeddings.pkz"):
     return data
     
 # Set model and map model names to OpenAI model IDs
-EMBEDDING_MODEL = "text-embedding-ada-002"
+EMBEDDING_MODEL = "text-embedding-3-large"
 
-# GPT_MODEL = "gpt-4-1106-preview"
-# GPT_MODEL = "gpt-3.5-turbo-16k"
+# GPT_MODEL = "gpt-4-turbo"
+# GPT_MODEL = "gpt-3.5-turbo"
 
 MAX_RETRIES = 2
 chat_state = st.session_state
@@ -75,7 +75,6 @@ def related_strings(query, embeddings, relatedness_fn, top_n):
     strings_and_relatednesses = [
         (row["text"], relatedness_fn(query_embedding, row["embedding"]))
         for i, row in embeddings.iterrows()
-        if relatedness_fn(query_embedding, row["embedding"]) > 0.825
     ]
     strings_and_relatednesses.sort(key=lambda x: x[1], reverse=True)
     
@@ -87,13 +86,13 @@ def related_strings(query, embeddings, relatedness_fn, top_n):
 def query_message(query, prevs, model, embeddings):
     """Return a message for GPT, with relevant source texts pulled from embeddings."""
     if model.startswith('gpt-4-'):
-        top_n = 40
+        top_n = 45
     elif model.startswith('gpt-4'):
-        top_n = 10
+        top_n = 15
     elif model.startswith('gpt-3.5-turbo'):
-        top_n = 20
+        top_n = 30
     else:
-        top_n = 5
+        top_n = 10
 
     strings, relatednesses = related_strings(
         query + prevs,
@@ -162,15 +161,22 @@ def interact():
         prevs = ""
         if len(chat_state.prompt) > 0:
             for i, _prompt in enumerate(chat_state.prompt):
-                prevs += f"\n{i+1}: {_prompt}"
+                prevs += f"({_prompt}) "
         context = ""
         with st.spinner("단서 탐색 중..."):
-            context, clues = query_message(query, prevs, GPT_MODEL, chat_state.embeddings) 
+            context, clues = query_message(query, prevs, GPT_MODEL, chat_state.embeddings)
+        
+        if os.path.exists('addendum.txt'):
+            with open('addendum.txt', 'r', encoding='utf-8') as file:
+                content = file.read()
+            context += content
+        
         if prevs:
-            context += "\n** 이전에 다음과 같은 질문들을 차례로 한 적이 있으니 새로운 질문의 의도나 맥락을 파악할 때 참고하세요. **\n" + prevs
+            context += f"\n\n이전에 {prevs}와 같은 질문들을 한 적이 있으니 아래 질문의 의도와 맥락을 파악하기 위해 참고만 하고 그 질문들에 대한 답은 절대 하지 마세요.\n"
 
-        prompt = context + f"\n\n[[질문]] {query}"
-        user_content = f"{prompt}\n\nUse Korean language if not stated otherwise. Provide only factual answers. If uncertain, just say 'unknown' and never fabricate one. Pretend as if you were a {expertise} expert."
+        context += f"\n\n[**** 이 질문에 답해주세요: {query} ****]"
+        
+        user_content = f"{context}\n\nUse Korean language if not stated elsewhere. Provide only factual answers. Pretend as if you were a {expertise} expert."
         user_content = re.sub(r'\n\s*\n', '\n\n', user_content)
         print(user_content)
 
@@ -284,12 +290,12 @@ def interact():
             st.rerun()
 
 ###
-GPT_MODEL = 'gpt-3.5-turbo-16k'
+GPT_MODEL = 'gpt-4'
 
 expertise = '대승불교 양우종'
 temperature = 0
 
-subject = '삶과 영혼의 비밀'
+subject = '삶과 영혼의 비밀 + 생활 속의 대자유'
 intro = "* 대승불교 양우회 발간 <span style='color: skyblue;'>삶과 영혼의 비밀</span>과 <span style='color: orange'>생활 속의 대자유</span>의 내용에 대한 질의응답 서비스입니다.<br/>* 제공된 정보가 정확하지 않을 수 있으니, 이 정보를 참고자료로만 사용하고 필요하면 직접 더 확인해 보세요."
 
 ###
