@@ -8,11 +8,12 @@ st.set_page_config(
 )
 
 import pandas as pd
-import openai   # For calling the OpenAI API
+from openai import OpenAI
 import pickle, zipfile
 import base64
 import io, os, re, random, datetime
 from scipy import spatial
+from tavily import TavilyClient
 from pathlib import Path
 from PIL import Image
 
@@ -44,10 +45,6 @@ def load_embeddings(pkz="embeddings.pkz"):
     
 # Set model and map model names to OpenAI model IDs
 EMBEDDING_MODEL = "text-embedding-3-large"
-
-# GPT_MODEL = "gpt-4-turbo"
-# GPT_MODEL = "gpt-3.5-turbo"
-
 MAX_RETRIES = 2
 chat_state = st.session_state
 
@@ -60,6 +57,13 @@ def init_chat(state):
             state[key] = value
     set_chat('prompt', [])
     set_chat('generated', [])
+    if 'openai_client' not in state:
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            openai_key = st.sidebar.text_input("OpenAI API key", value="", type="password")
+        if openai_key:
+            state['openai_client'] = OpenAI(api_key=openai_key)
+    
 
 def clear_chat(state):
     def clear_one(key):
@@ -68,7 +72,7 @@ def clear_chat(state):
     clear_one('generated')
 
 def compute_embedding(segment, model=EMBEDDING_MODEL):
-    return openai.Embedding.create(input=[segment], model=model)['data'][0]['embedding']
+    return st.session_state['openai_client'].embeddings.create(input=[segment], model=model).data[0].embedding
 
 def related_strings(query, embeddings, relatedness_fn, top_n):
     query_embedding = compute_embedding(query)
@@ -81,36 +85,55 @@ def related_strings(query, embeddings, relatedness_fn, top_n):
     if not strings_and_relatednesses:
         return [], []  # 결과가 없을 경우 빈 리스트 반환
     strings, relatednesses = zip(*strings_and_relatednesses)
-    return strings[:top_n], relatednesses[:top_n]
+    return list(strings[:top_n]), list(relatednesses[:top_n])
 
 def query_message(query, prevs, model, embeddings):
-    """Return a message for GPT, with relevant source texts pulled from embeddings."""
-    if model.startswith('gpt-4-'):
-        top_n = 45
-    elif model.startswith('gpt-4'):
-        top_n = 15
-    elif model.startswith('gpt-3.5-turbo'):
-        top_n = 30
-    else:
-        top_n = 10
-
+    strings = []
+    relatednesses = []
+    clues = ""
+    
     strings, relatednesses = related_strings(
         query + prevs,
         embeddings,
         lambda subj1, subj2: 1 - spatial.distance.cosine(subj1, subj2),
         top_n
     )
-    chat_state.lookup = strings, relatednesses
-
-    clues = ""
+    
     for string in strings:  # TODO: Must check if the clues are within the token-budget
         clues += string.strip() + "\n\n"
-    if not clues:
-        return "정보가 부족하여 답을 알 수 없습니다 라고 말해주세요.", []
-    return f"""
-** 다음 단서들 가운데 질문의 취지(의도)와 확실히 관련된 단서들만을 사용하여 absolutely factual 하게 답하세요. 단서들이 질문에서 언급된 핵심 단어나 개념을 포함하지 않으면 모르겠습니다 라고 짧게 말해주세요. 단서를 활용하여 답을 찾은 경우, 실제 응답에서 사용된 단서들에 대하여 응답 마지막에 bullet으로 2건 이내로 간략히 요약 정리해주세요. 답변은 {expertise} 전문가의 용어나 문체를 적극 사용하고, 공손한 말투를 사용해주세요. **
+        
+    if 'use_websearch' in chat_state and chat_state['use_websearch']:
+        try:
+            tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+            web_clues = tavily_client.search(query=query + "(최신자료순)", search_depth="advanced", include_answer=True)
 
-{clues}""", strings
+            # if 'answer' in web_clues:
+            #     clue = web_clues['answer'].strip().replace('~', '-')
+            #     strings.append(clue)
+            #     relatednesses.append(0.5)
+            #     clues += f"{clue}\n\n"
+            if 'results' in web_clues:
+                for i, result in enumerate(web_clues['results']):
+                    clue = result['content'].strip()
+                    strings.append(clue)
+                    relatednesses.append(0.5)
+                    clues += f"{clue}\n\n"
+        except Exception as e:
+            # st.exception(e)
+            # st.error(str(e))
+            pass
+
+    chat_state.lookup = strings, relatednesses
+
+    unknown_ = "죄송합니다. 정보가 부족하여 답을 알 수 없습니다."
+    if not clues:
+        return f"단서가 없으면 '{unknown_}' 라고 말해주세요.", []
+    return f"""
+다음 단서들을 최대한 활용하여 답하세요. 답변은 {expertise} 전문가의 용어나 문체를 적극 활용하고, 존댓말을 사용해주세요.
+
+{clues}
+
+""", strings
     
 def img_to_bytes(img_path):
     with Image.open(img_path) as img:
@@ -147,62 +170,67 @@ def interact():
 
     init_chat(chat_state)
     
-    # Set API key
-    openai.organization = ""
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-
+    if st.sidebar.checkbox("웹 검색"):
+        chat_state['use_websearch'] = True
+    else:
+        chat_state['use_websearch'] = False
+    
     # Embeddings
     if 'embeddings' not in chat_state:
         with st.spinner("색인 정보를 로드하는 중..."):
             chat_state['embeddings'] = load_embeddings()
 
     # Generate a response
-    def generate_response(query, is_first_attempt):
+    def generate_response(query):
         prevs = ""
         if len(chat_state.prompt) > 0:
             for i, _prompt in enumerate(chat_state.prompt):
                 prevs += f"({_prompt}) "
         context = ""
         with st.spinner("단서 탐색 중..."):
-            context, clues = query_message(query, prevs, GPT_MODEL, chat_state.embeddings)
-        
+            context, clues = query_message(query, prevs, model, chat_state.embeddings)
+                
         if os.path.exists('addendum.txt'):
             with open('addendum.txt', 'r', encoding='utf-8') as file:
                 content = file.read()
             context += content
-        
+   
         if prevs:
-            context += f"\n\n이전에 {prevs}와 같은 질문들을 한 적이 있으니 아래 질문의 의도와 맥락을 파악하기 위해 참고만 하고 그 질문들에 대한 답은 절대 하지 마세요.\n"
-
+            context += f"\n\n이전에 {prevs}와 같은 질문들을 한 적이 있으니 아래 질문의 맥락을 파악하기 위해 참고만 하고 그 질문들에 대한 직접적인 답은 절대 하지 마세요.\n"
+    
         context += f"\n\n[!!!! 이 질문에 답해주세요: {query} !!!!]"
-        
-        user_content = f"{context}\n\nUse Korean language if not stated elsewhere. Provide only factual answers. Pretend as if you were a {expertise} expert."
+            
+        user_content = f"{context}\n\n특별한 지시가 없는 한 {language} 언어로 {expertise} 전문가인척 응답하되, {tone}하세요."
         user_content = re.sub(r'\n\s*\n', '\n\n', user_content)
         print(user_content)
-
-        system_content = f"You are an absolutely factual {expertise} expert speaking Korean language natively."
+    
+        system_content = f"당신은 {tone}하는 {expertise} {language} 원어민 전문가입니다."
         
         with st.sidebar.expander("지식출처"):
             st.dataframe(pd.DataFrame({'참고정보': clues}), hide_index=True)
-        
+            
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             full_response = ""
-            for response in openai.ChatCompletion.create(
-                    model=GPT_MODEL,
-                    temperature=temperature,
-                    messages=[
-                        {"role": "system", "content": system_content},
-                        {"role": "user", "content": user_content}
-                    ],
-                    n=1,
-                    # top_p=1,
-                    stop=None,
-                    stream=True):
-                full_response += response.choices[0].delta.get("content", "")
+            stream = chat_state['openai_client'].chat.completions.create(
+                model=model,
+                temperature=temperature,
+                messages=[
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content}
+                ],
+                n=1,
+                # top_p=1,
+                stop=None,
+                stream=True)
+            for chunk in stream:
+                cpart = chunk.choices[0].delta.content
+                if cpart is not None:
+                    full_response += cpart.replace('~', '-')
                 message_placeholder.markdown(full_response + "_")
             new_answer = full_response.strip()
             message_placeholder.markdown(new_answer)
+    
         return new_answer
         
     def message_response(text):
@@ -221,7 +249,7 @@ def interact():
             retries = 1
             while retries <= MAX_RETRIES:
                 try:
-                    generated = generate_response(user_input, retries==1)
+                    generated = generate_response(user_input)
                     break
                 except Exception as e:
                     error_msgs = str(e)
@@ -290,10 +318,14 @@ def interact():
             st.rerun()
 
 ###
-GPT_MODEL = 'gpt-4'
+
+model = 'gpt-4'
+top_n = 10
 
 expertise = '대승불교 양우종'
-temperature = 0
+tone = '확실한 사실만 간략하게 언급'
+temperature = 0.0
+language = '한국어'
 
 subject = '삶과 영혼의 비밀 + 생활 속의 대자유'
 intro = "* 대승불교 양우회 발간 <span style='color: skyblue;'>삶과 영혼의 비밀</span>과 <span style='color: orange'>생활 속의 대자유</span>의 내용에 대한 질의응답 서비스입니다.<br/>* 제공된 정보가 정확하지 않을 수 있으니, 이 정보를 참고자료로만 사용하고 필요하면 직접 더 확인해 보세요."
