@@ -129,7 +129,7 @@ def query_message(query, prevs, model, embeddings):
     if not clues:
         return f"단서가 없으면 '{unknown_}' 라고 말해주세요.", []
     return f"""
-다음 단서들을 최대한 활용하여 답하세요. 답변은 {expertise} 전문가의 용어나 문체를 적극 활용하고, 존댓말을 사용해주세요.
+다음 단서들을 활용하여 답하고, 단서에 없는 내용을 지어서 말하지 마세요. 답변은 {expertise} 전문가의 용어나 문체를 적극 활용하고, 존댓말을 사용해주세요.
 
 {clues}
 
@@ -319,11 +319,11 @@ def interact():
 
 ###
 
-model = 'gpt-4'
-top_n = 10
+model = 'gpt-4o'
+top_n = 30
 
 expertise = '대승불교 양우종'
-tone = '확실한 사실만 간략하게 언급'
+tone = '완전 확실한 사실만 언급'
 temperature = 0.0
 language = '한국어'
 
